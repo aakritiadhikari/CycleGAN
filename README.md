@@ -22,62 +22,86 @@ Here’s a step-by-step breakdown of what occurs during each epoch and how the g
 --gradients_G captures gradients for both G and F since they are concatenated<br />
 --optimizer_G updates both G and F simultaneously to ensure synchronized updates.optimizer_D_M and optimizer_D_P update their respective discriminators.<br />
 
-with tf.GradientTape(persistent=True) as tape:
-    # Generate fake images
-    fake_monet = G(photo, training=True)
-    cycled_photo = F(fake_monet, training=True)
-    
-    fake_photo = F(monet, training=True)
-    cycled_monet = G(fake_photo, training=True)
-    
-    # Identity mapping (optional)
-    same_monet = G(monet, training=True)
-    same_photo = F(photo, training=True)
-    
-    # Discriminator outputs
-    D_X_real = D_X(photo, training=True)
-    D_X_fake = D_X(fake_photo, training=True)
-    
-    D_Y_real = D_Y(monet, training=True)
-    D_Y_fake = D_Y(fake_monet, training=True)
-    
-    # Compute adversarial losses
-    adv_loss_G = bce_loss(tf.ones_like(D_Y_fake), D_Y_fake)
-    adv_loss_F = bce_loss(tf.ones_like(D_X_fake), D_X_fake)
-    
-    # Compute cycle consistency losses
-    cycle_loss_G = cycle_loss_fn(photo, cycled_photo)
-    cycle_loss_F = cycle_loss_fn(monet, cycled_monet)
-    
-    # Compute identity losses
-    identity_loss_G = cycle_loss_fn(monet, same_monet)
-    identity_loss_F = cycle_loss_fn(photo, same_photo)
-    
-    # Total generator losses
-    total_gen_loss_G = adv_loss_G + 10 * cycle_loss_G + 5 * identity_loss_G
-    total_gen_loss_F = adv_loss_F + 10 * cycle_loss_F + 5 * identity_loss_F
-    
-    # Total generator loss
-    total_gen_loss = total_gen_loss_G + total_gen_loss_F
-    
-    # Compute discriminator losses
-    D_X_loss_real = bce_loss(tf.ones_like(D_X_real), D_X_real)
-    D_X_loss_fake = bce_loss(tf.zeros_like(D_X_fake), D_X_fake)
-    D_X_loss = (D_X_loss_real + D_X_loss_fake) * 0.5
-    
-    D_Y_loss_real = bce_loss(tf.ones_like(D_Y_real), D_Y_real)
-    D_Y_loss_fake = bce_loss(tf.zeros_like(D_Y_fake), D_Y_fake)
-    D_Y_loss = (D_Y_loss_real + D_Y_loss_fake) * 0.5
+def train_cycle_gan_step(G, F, D_M, D_P, cycle_gan, optimizer_G, optimizer_F, optimizer_D_M, optimizer_D_P, photo, monet):
+    """
+    Performs a single training step for CycleGAN.
 
-# Compute gradients
-gradients_G = tape.gradient(total_gen_loss, G.trainable_variables + F.trainable_variables)
-gradients_D_X = tape.gradient(D_X_loss, D_X.trainable_variables)
-gradients_D_Y = tape.gradient(D_Y_loss, D_Y.trainable_variables)
+    Args:
+        G (Model): Generator from Photo to Monet.
+        F (Model): Generator from Monet to Photo.
+        D_M (Model): Discriminator for Monet.
+        D_P (Model): Discriminator for Photo.
+        cycle_gan (Model): Combined CycleGAN model.
+        optimizer_G (Optimizer): Optimizer for generators.
+        optimizer_F (Optimizer): Optimizer for generators.
+        optimizer_D_M (Optimizer): Optimizer for Monet discriminator.
+        optimizer_D_P (Optimizer): Optimizer for Photo discriminator.
+        photo (tf.Tensor): Batch of photo images.
+        monet (tf.Tensor): Batch of Monet images.
 
-# Apply gradients
-optimizer_G.apply_gradients(zip(gradients_G, G.trainable_variables + F.trainable_variables))
-optimizer_D_X.apply_gradients(zip(gradients_D_X, D_X.trainable_variables))
-optimizer_D_Y.apply_gradients(zip(gradients_D_Y, D_Y.trainable_variables))
-
-
-return total_gen_loss, D_X_loss, D_Y_loss
+    Returns:
+        tuple: Total generator loss, Monet discriminator loss, Photo discriminator loss.
+    """
+    with tf.GradientTape(persistent=True) as tape:
+        # Generate fake Monet images
+        fake_monet = G(photo, training=True)
+        # Generate cycled photos
+        cycled_photo = F(fake_monet, training=True)
+        
+        # Generate fake photos
+        fake_photo = F(monet, training=True)
+        # Generate cycled Monet images
+        cycled_monet = G(fake_photo, training=True)
+        
+        # Identity mapping (optional)
+        same_monet = G(monet, training=True)
+        same_photo = F(photo, training=True)
+        
+        # Discriminator outputs
+        D_M_real = D_M(monet, training=True)
+        D_M_fake = D_M(fake_monet, training=True)
+        
+        D_P_real = D_P(photo, training=True)
+        D_P_fake = D_P(fake_photo, training=True)
+        
+        # Adversarial losses
+        adv_loss_G = bce_loss(tf.ones_like(D_M_fake), D_M_fake)
+        adv_loss_F = bce_loss(tf.ones_like(D_P_fake), D_P_fake)
+        
+        # Cycle consistency losses
+        cycle_loss_G = cycle_loss_fn(photo, cycled_photo)
+        cycle_loss_F = cycle_loss_fn(monet, cycled_monet)
+        
+        # Identity losses
+        identity_loss_G = cycle_loss_fn(monet, same_monet)
+        identity_loss_F = cycle_loss_fn(photo, same_photo)
+        
+        # Total generator losses
+        total_gen_loss_G = adv_loss_G + 10 * cycle_loss_G + 5 * identity_loss_G
+        total_gen_loss_F = adv_loss_F + 10 * cycle_loss_F + 5 * identity_loss_F
+        
+        # Total generator loss
+        total_gen_loss = total_gen_loss_G + total_gen_loss_F
+        
+        # Discriminator losses
+        D_M_loss_real = bce_loss(tf.ones_like(D_M_real), D_M_real)
+        D_M_loss_fake = bce_loss(tf.zeros_like(D_M_fake), D_M_fake)
+        D_M_loss = (D_M_loss_real + D_M_loss_fake) * 0.5
+        
+        D_P_loss_real = bce_loss(tf.ones_like(D_P_real), D_P_real)
+        D_P_loss_fake = bce_loss(tf.zeros_like(D_P_fake), D_P_fake)
+        D_P_loss = (D_P_loss_real + D_P_loss_fake) * 0.5
+        
+    # Compute gradients
+    gradients_G = tape.gradient(total_gen_loss, G.trainable_variables + F.trainable_variables)
+    gradients_D_M = tape.gradient(D_M_loss, D_M.trainable_variables)
+    gradients_D_P = tape.gradient(D_P_loss, D_P.trainable_variables)
+    
+    # Apply gradients
+    optimizer_G.apply_gradients(zip(gradients_G, G.trainable_variables + F.trainable_variables))
+    optimizer_D_M.apply_gradients(zip(gradients_D_M, D_M.trainable_variables))
+    optimizer_D_P.apply_gradients(zip(gradients_D_P, D_P.trainable_variables))
+    
+    
+    
+    return total_gen_loss, D_M_loss, D_P_loss
