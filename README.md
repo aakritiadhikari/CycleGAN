@@ -10,7 +10,7 @@ Read this paper: https://junyanz.github.io/CycleGAN/
 --Define models for generator and discriminator 
 
 # Generators:
-G: Translates images from Domain X (e.g., photos) to Domain Y (e.g., Monet paintings).\\
+G: Translates images from Domain X (e.g., photos) to Domain Y (e.g., Monet paintings).<br />
 F: Translates images from Domain Y back to Domain X.\
 
 # Discriminators:
