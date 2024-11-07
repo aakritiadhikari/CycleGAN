@@ -21,7 +21,6 @@ Here’s a step-by-step breakdown of what occurs during each epoch and how the g
 --We are computing gradients for G & F, D_M (D_X), D_P (D_Y)<br />
 --gradients_G captures gradients for both G and F since they are concatenated<br />
 --optimizer_G updates both G and F simultaneously to ensure synchronized updates.optimizer_D_M and optimizer_D_P update their respective discriminators.<br />
-
 with tf.GradientTape(persistent=True) as tape:
         # Generate fake Monet images
         fake_monet = G(photo, training=True)
